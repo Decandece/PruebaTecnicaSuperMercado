@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # -----------------------------------------------------------
+  # SERVICIO 1: LA APLICACIÓN (BACKEND)
+  # -----------------------------------------------------------
+  app-backend:
+    # <--- Nombre arbitrario para este servicio dentro de Docker
+    # Nombre de la carpeta donde está tu Dockerfile
+    build: PruebaTecnicaSuperMercado
+    mem_limit: 512m
+    ports:
+      - "8080:8080"
+
+    environment:
+      # --- CONFIGURACIÓN DE CONEXIÓN (LO QUE PEDISTE) ---
+
+      # 1. DB_URL:
+      # - "jdbc:postgresql": Protocolo correcto para Postgres.
+      # - "//db-supermercado": ¡OJO AQUÍ! Este es el nombre del servicio de abajo. NO es localhost.
+      # - ":5432": Puerto interno del contenedor de Postgres (siempre es 5432).
+      # - "/superMercadoDB": Nombre de la base de datos definida en el servicio de abajo.
+      DB_URL: jdbc:postgresql://db-supermercado:5432/superMercadoDB
+
+      # 2. Credenciales: Deben coincidir con lo que configures en el servicio de la BD abajo
+      DB_USERNAME: superMercado
+      DB_PASSWORD: superMercado123
+
+      # 3. Dialecto: Para que Hibernate sepa que habla con Postgres y no MySQL
+      DB_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+
+    restart: always
+
+    # Esto le dice a Docker: "No inicies la App hasta que la BD esté lista"
+    depends_on:
+      db-supermercado:
+        # <--- Debe coincidir con el nombre del servicio de abajo
+        condition: service_healthy
+
+  # -----------------------------------------------------------
+  # SERVICIO 2: LA BASE DE DATOS (POSTGRESQL)
+  # -----------------------------------------------------------
+  db-supermercado:
+    # <--- ¡ESTE NOMBRE ES CLAVE! Se usa como "host" en la URL de arriba
+    image: postgres:15 # Usamos la imagen oficial de Postgres
+
+    ports:
+      # "PuertoPC : PuertoContenedor"
+      # Tu PC usa el 5435 (para conectarte con DBeaver), el contenedor usa el 5432 internamente.
+      - "5435:5432"
+
+    environment:
+      # Variables para crear la BD inicial (Son específicas de la imagen de Postgres)
+      POSTGRES_DB: superMercadoDB # <--- Crea la BD que pides en la URL
+      POSTGRES_USER: superMercado # <--- Crea el usuario que usa la App
+      POSTGRES_PASSWORD: superMercado123 # <--- Crea la contraseña que usa la App
+
+    restart: always
+
+    # Healthcheck adaptado para Postgres (mysqladmin no sirve aquí)
+    healthcheck:
+      # Revisa si Postgres está listo para aceptar conexiones
+      test: [ "CMD-SHELL", "pg_isready -U superMercado -d superMercadoDB" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
